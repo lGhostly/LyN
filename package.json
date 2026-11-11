@@ -1,0 +1,11 @@
+{
+  "name": "bazar",
+  "type": "module",
+  "private": true,
+  "scripts": { "dev": "astro dev", "build": "astro build" },
+  "dependencies": {
+    "@astrojs/vercel": "^8.0.0",
+    "astro": "^5.0.0",
+    "mongodb": "^6.0.0"
+  }
+}

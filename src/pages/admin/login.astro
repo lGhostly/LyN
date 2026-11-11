@@ -1,0 +1,19 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { login } from '../../lib/auth.js';
+
+let error = '';
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  if (login(Astro.cookies, String(f.get('password')))) return Astro.redirect('/admin');
+  error = 'Contraseña incorrecta';
+}
+---
+<Layout>
+  <form method="post" class="box">
+    <h2>Ingreso de administrador</h2>
+    <label>Contraseña</label><input type="password" name="password" required />
+    {error && <p class="err">{error}</p>}
+    <p><button>Entrar</button></p>
+  </form>
+</Layout>

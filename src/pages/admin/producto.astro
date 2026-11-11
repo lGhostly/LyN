@@ -1,0 +1,90 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { get, save } from '../../lib/db.js';
+import { destroyImage } from '../../lib/cloudinary.js';
+import { isAdmin } from '../../lib/auth.js';
+import { img } from '../../lib/cdn.js';
+
+if (!isAdmin(Astro.cookies)) return Astro.redirect('/admin/login');
+const id = Astro.url.searchParams.get('id');
+const p = id ? await get(id) : null;
+
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  // Cada imagen tildada llega como JSON {url, publicId}
+  const keep = f.getAll('keep').map((v) => JSON.parse(String(v)));
+  const keepIds = keep.map((i) => i.publicId);
+  await Promise.all((p?.images ?? []).filter((i) => !keepIds.includes(i.publicId)).map((i) => destroyImage(i.publicId)));
+  await save({
+    id: p?.id ?? crypto.randomUUID(),
+    created: p?.created ?? Date.now(),
+    title: String(f.get('title')).trim(),
+    desc: String(f.get('desc')).trim(),
+    price: parseFloat(String(f.get('price'))) || 0,
+    images: keep,
+  });
+  return Astro.redirect('/admin');
+}
+---
+<Layout admin={true}>
+  <form method="post" class="box" id="form">
+    <h2>{p ? 'Editar producto' : 'Nuevo producto'}</h2>
+    <label>Título</label><input name="title" required value={p?.title ?? ''} />
+    <label>Descripción</label><textarea name="desc" rows="5">{p?.desc ?? ''}</textarea>
+    <label>Precio ($)</label><input name="price" type="number" min="0" step="0.01" value={p?.price ?? ''} />
+    <label>Imágenes (destildá para quitar)</label>
+    <div class="thumbs" id="thumbs">
+      {(p?.images ?? []).map((i) => (
+        <label><img src={img(i.url, 160)} /><input type="checkbox" name="keep" value={JSON.stringify(i)} checked style="width:auto" /></label>
+      ))}
+    </div>
+    <label>Agregar imágenes</label>
+    <input type="file" id="files" accept="image/*" multiple />
+    <p id="status" class="err" style="color:var(--mut)"></p>
+    <p class="row"><button id="save">Guardar</button><a class="btn sec" href="/admin">Cancelar</a></p>
+  </form>
+</Layout>
+<script>
+  const files = document.getElementById('files') as HTMLInputElement;
+  const thumbs = document.getElementById('thumbs')!;
+  const status = document.getElementById('status')!;
+  const save = document.getElementById('save') as HTMLButtonElement;
+
+  files.addEventListener('change', async () => {
+    save.disabled = true;
+    try {
+      for (const file of Array.from(files.files ?? [])) {
+        status.textContent = `Subiendo ${file.name}…`;
+        const sr = await fetch('/api/sign', { method: 'POST' });
+        if (!sr.ok) throw new Error('No se pudo firmar la subida (sesión vencida o faltan variables en Vercel)');
+        const sig = await sr.json();
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('api_key', sig.apiKey);
+        fd.append('timestamp', sig.timestamp);
+        fd.append('folder', sig.folder);
+        fd.append('signature', sig.signature);
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`, { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error?.message || 'Cloudinary rechazó la subida');
+        }
+        const d = await res.json();
+        const value = JSON.stringify({ url: d.secure_url, publicId: d.public_id });
+        const label = document.createElement('label');
+        const im = document.createElement('img');
+        im.src = d.secure_url.replace('/upload/', '/upload/f_auto,q_auto,w_160/');
+        const cb = document.createElement('input');
+        Object.assign(cb, { type: 'checkbox', name: 'keep', value, checked: true });
+        cb.style.width = 'auto';
+        label.append(im, cb);
+        thumbs.append(label);
+      }
+      status.textContent = '';
+    } catch (e) {
+      status.textContent = 'Error: ' + e.message;
+    }
+    files.value = '';
+    save.disabled = false;
+  });
+</script>

@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { all } from '../lib/db.js';
+import { isAdmin } from '../lib/auth.js';
+import { img } from '../lib/cdn.js';
+
+const q = (Astro.url.searchParams.get('q') || '').toLowerCase();
+let products = [], error = false;
+try {
+  products = (await all()).filter((p) => (p.title + ' ' + p.desc).toLowerCase().includes(q));
+} catch (e) { console.error(e); error = true; }
+---
+<Layout admin={isAdmin(Astro.cookies)}>
+  <form class="bar"><input name="q" placeholder="Buscar productos…" value={q} /><button>Buscar</button></form>
+  {error && <p class="err">No se pudieron cargar los productos. Probá de nuevo en un momento.</p>}
+  <div class="grid">
+    {products.map((p) => (
+      <a class="card" href={`/producto/${p.id}`}>
+        {p.images[0] ? <img src={img(p.images[0].url, 500)} alt={p.title} loading="lazy" /> : <div class="ph">Sin imagen</div>}
+        <div class="b"><h3>{p.title}</h3><p>{p.desc.slice(0, 90)}</p><span class="price">${Number(p.price).toLocaleString('es-AR')}</span></div>
+      </a>
+    ))}
+  </div>
+  {!error && products.length === 0 && <p>No hay productos para mostrar.</p>}
+</Layout>
