@@ -18,12 +18,15 @@ try { products = await all(); } catch (e) { console.error(e); error = true; }
   <p><a class="btn" href="/admin/producto">+ Nuevo producto</a></p>
   {error && <p class="err">No se pudo conectar con la base de datos.</p>}
   <table>
-    <tr><th></th><th>Título</th><th>Precio</th><th></th></tr>
+    <tr><th></th><th>Título</th><th>Precio</th><th>Stock</th><th></th></tr>
     {products.map((p) => (
       <tr>
         <td>{p.images[0] && <img src={img(p.images[0].url, 100)} width="48" height="48" style="object-fit:cover;border-radius:6px" />}</td>
         <td>{p.title}</td>
         <td>${Number(p.price).toLocaleString('es-AR')}</td>
+        <td>
+          {p.stock === undefined ? '—' : p.stock === 0 ? <b class="err">Sin stock</b> : p.stock}
+        </td>
         <td class="row">
           <a class="btn sec" href={`/admin/producto?id=${p.id}`}>Editar</a>
           <form method="post" onsubmit="return confirm('¿Eliminar este producto?')">
